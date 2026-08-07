@@ -1,0 +1,6 @@
+{
+  "name": "Repo-Healer",
+  "description": "Autonomous code-repair and self-healing AI agent dashboard with AST indexing, Gemini reasoning trace, live code diff viewer, and CI/CD metrics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
