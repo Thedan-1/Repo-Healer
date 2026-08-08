@@ -16,10 +16,11 @@ import {
   ExternalLink,
   CheckCircle2,
   Zap,
+  FolderPlus,
+  GitBranch,
 } from 'lucide-react';
 import { NotificationsPopover } from './NotificationsPopover';
 import { SettingsModal } from './SettingsModal';
-import { VsCodeExtensionModal } from './VsCodeExtensionModal';
 import { NotificationItem, SystemSettings } from '../types';
 
 interface HeaderProps {
@@ -33,6 +34,7 @@ interface HeaderProps {
   notifications: NotificationItem[];
   onMarkAllRead: () => void;
   onClearNotifications: () => void;
+  onOpenUploadModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -46,10 +48,10 @@ export const Header: React.FC<HeaderProps> = ({
   notifications,
   onMarkAllRead,
   onClearNotifications,
+  onOpenUploadModal,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showVsCodeModal, setShowVsCodeModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userStatus, setUserStatus] = useState<'online' | 'busy' | 'auto'>('online');
 
@@ -76,21 +78,23 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               </div>
               <p className="text-[12px] text-slate-500 font-normal hidden sm:block">
-                自主代码修复 Agent 与 AST 语法树重构架构
+                自主代码修复 Agent 与 IDE 集成自愈工作台
               </p>
             </div>
           </div>
 
-          {/* Center/Right Toolbar: VS Code Plugin, Settings, Notifications, Avatar */}
-          <div className="flex items-center gap-2.5">
-            {/* VS Code Plugin Modal Trigger */}
-            <button
-              onClick={() => setShowVsCodeModal(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium text-xs border border-slate-200/80 transition-all shadow-2xs active:scale-97"
-            >
-              <Code2 className="w-3.5 h-3.5 text-blue-600" />
-              <span>VS Code 插件指南</span>
-            </button>
+          {/* Center/Right Toolbar: Import Local Code, Settings, Notifications, Avatar */}
+          <div className="flex items-center gap-2">
+            {/* Import Local Code Button */}
+            {onOpenUploadModal && (
+              <button
+                onClick={onOpenUploadModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium text-xs border border-slate-200/80 transition-all shadow-2xs active:scale-97"
+              >
+                <FolderPlus className="w-3.5 h-3.5 text-blue-600" />
+                <span>导入 / 选择本地代码</span>
+              </button>
+            )}
 
             {/* System Settings Button */}
             <button
@@ -229,16 +233,6 @@ export const Header: React.FC<HeaderProps> = ({
                       <Sliders className="w-3.5 h-3.5 text-slate-500" />
                       <span>偏好设置</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        setShowVsCodeModal(true);
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-100 flex items-center gap-2"
-                    >
-                      <Code2 className="w-3.5 h-3.5 text-slate-500" />
-                      <span>VS Code 扩展绑定</span>
-                    </button>
                     <a
                       href="https://github.com"
                       target="_blank"
@@ -318,12 +312,6 @@ export const Header: React.FC<HeaderProps> = ({
         onClose={() => setShowSettingsModal(false)}
         settings={settings}
         onUpdateSettings={onUpdateSettings}
-      />
-
-      {/* VS Code Extension Modal */}
-      <VsCodeExtensionModal
-        isOpen={showVsCodeModal}
-        onClose={() => setShowVsCodeModal(false)}
       />
     </>
   );

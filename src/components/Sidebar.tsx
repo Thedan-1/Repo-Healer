@@ -1,6 +1,6 @@
 import React from 'react';
 import { AgentMode, SampleRepo } from '../types';
-import { FolderGit2, Shield, Zap, Flame, Key, Database, RefreshCw, CheckCircle2, ChevronRight, FileCode2 } from 'lucide-react';
+import { FolderGit2, Shield, Zap, Flame, Key, Database, RefreshCw, CheckCircle2, ChevronRight, FileCode2, FolderPlus, Upload } from 'lucide-react';
 
 interface SidebarProps {
   sampleRepos: SampleRepo[];
@@ -16,6 +16,7 @@ interface SidebarProps {
   hasApiKey: boolean;
   astNodesCount: number;
   chromaCount: number;
+  onOpenUploadModal: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -32,18 +33,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   hasApiKey,
   astNodesCount,
   chromaCount,
+  onOpenUploadModal,
 }) => {
   return (
     <aside className="w-full lg:w-72 bg-white border border-slate-200/80 rounded-2xl p-5 flex flex-col gap-5 text-slate-700 shadow-sm">
       {/* Sample Repository Switcher */}
       <div>
-        <label className="block text-[11px] uppercase tracking-wider text-slate-500 mb-2 font-bold flex items-center justify-between">
-          <span className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-[11px] uppercase tracking-wider text-slate-500 font-bold flex items-center gap-1.5">
             <FolderGit2 className="w-3.5 h-3.5 text-blue-600" />
-            目标代码仓库 (Repositories)
-          </span>
-          <span className="text-[10px] text-slate-400 font-mono">Python/PyTest</span>
-        </label>
+            目标代码仓库
+          </label>
+          <button
+            onClick={onOpenUploadModal}
+            className="text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-0.5 rounded-md flex items-center gap-1 transition-all"
+            title="选择本地文件夹或导入文件"
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+            <span>导入本地</span>
+          </button>
+        </div>
+
         <div className="space-y-2 mt-2">
           {sampleRepos.map((repo) => {
             const isSelected = selectedRepo.id === repo.id;

@@ -85,6 +85,7 @@ export interface AgentRunState {
 export interface CommitHistoryItem {
   hash: string;
   author: string;
+  branch: string;
   date: string;
   message: string;
   filesChanged: string[];

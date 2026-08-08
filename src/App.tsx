@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SAMPLE_REPOS } from './data/sampleRepos';
-import { AgentMode, SampleRepo, TraceStep, FileDiff, MetricData, ASTNodeInfo, SystemSettings, NotificationItem } from './types';
+import { AgentMode, SampleRepo, TraceStep, FileDiff, MetricData, ASTNodeInfo, SystemSettings, NotificationItem, RepoFile } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { MetricsDashboard } from './components/MetricsDashboard';
@@ -8,13 +8,18 @@ import { AgentTraceConsole } from './components/AgentTraceConsole';
 import { CodeDiffViewer } from './components/CodeDiffViewer';
 import { CodeEditorPanel } from './components/CodeEditorPanel';
 import { AstIndexViewer } from './components/AstIndexViewer';
+import { CodeUploadModal } from './components/CodeUploadModal';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('trace');
+  const [allRepos, setAllRepos] = useState<SampleRepo[]>(SAMPLE_REPOS);
   const [selectedRepo, setSelectedRepo] = useState<SampleRepo>(SAMPLE_REPOS[0]);
   const [repoPath, setRepoPath] = useState<string>('/home/dev/workspace/python-calc-service');
   const [agentMode, setAgentMode] = useState<AgentMode>('safe');
   const [hasApiKey, setHasApiKey] = useState<boolean>(true);
+
+  // Modals state
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
 
   // System Settings State
   const [settings, setSettings] = useState<SystemSettings>({
@@ -93,15 +98,78 @@ export default function App() {
   const handleSelectRepo = (repo: SampleRepo) => {
     setSelectedRepo(repo);
     setRepoPath(`/home/dev/workspace/${repo.name}`);
-    setActiveFilePath(repo.files[0].path);
+    if (repo.files && repo.files.length > 0) {
+      setActiveFilePath(repo.files[0].path);
+    }
     runIndexRepo(repo);
   };
 
   const handleUpdateFileContent = (path: string, newContent: string) => {
     setSelectedRepo((prev) => ({
       ...prev,
-      files: prev.files.map((f) => (f.path === path ? { ...f, content: newContent } : f)),
+      files: prev.files.map((f) =>
+        f.path === path
+          ? {
+              ...f,
+              content: newContent,
+              hasBug: false,
+              bugDescription: undefined,
+            }
+          : f
+      ),
     }));
+  };
+
+  const handleAddFile = (fileName: string) => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    const language: 'python' | 'typescript' | 'javascript' =
+      ext === 'py' ? 'python' : ext === 'ts' || ext === 'tsx' ? 'typescript' : 'javascript';
+
+    const newFile: RepoFile = {
+      path: fileName,
+      language,
+      content: language === 'python' ? `# ${fileName}\ndef example_function():\n    return True\n` : `// ${fileName}\nexport function example() {\n  return true;\n}\n`,
+    };
+
+    setSelectedRepo((prev) => ({
+      ...prev,
+      files: [...prev.files, newFile],
+    }));
+    setActiveFilePath(fileName);
+  };
+
+  const handleDeleteFile = (filePath: string) => {
+    setSelectedRepo((prev) => {
+      const remaining = prev.files.filter((f) => f.path !== filePath);
+      if (activeFilePath === filePath && remaining.length > 0) {
+        setActiveFilePath(remaining[0].path);
+      }
+      return {
+        ...prev,
+        files: remaining,
+      };
+    });
+  };
+
+  const handleImportProject = (newRepo: SampleRepo) => {
+    setAllRepos((prev) => [newRepo, ...prev]);
+    setSelectedRepo(newRepo);
+    setRepoPath(`/home/dev/workspace/${newRepo.name}`);
+    if (newRepo.files && newRepo.files.length > 0) {
+      setActiveFilePath(newRepo.files[0].path);
+    }
+    runIndexRepo(newRepo);
+
+    // Notify user
+    const notif: NotificationItem = {
+      id: Date.now().toString(),
+      title: `新工程导入成功: ${newRepo.name}`,
+      description: `已完成 ${newRepo.files.length} 个本地源码文件的加载与 AST 语法索引构建`,
+      time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      type: 'success',
+      read: false,
+    };
+    setNotifications((prev) => [notif, ...prev]);
   };
 
   const handleMarkAllNotificationsRead = () => {
@@ -244,15 +312,15 @@ export default function App() {
         thought: 'PyTest 测试执行完毕，所有 4 个单元测试断言均已通过！',
       };
 
-      // Step 5: Final Commit
+      // Step 5: Final Update
       const step5: TraceStep = {
         id: '5',
         stepNumber: 5,
-        title: '代码自愈校验通过，已暂存并自动 Commit 提交',
+        title: '代码自愈校验通过，更新直接生效于当前工程',
         status: 'success',
         timestamp: now(),
         phase: 'commit',
-        thought: '代码库已完成自愈修复，无任何语法回归，暂存并提交 Patch。',
+        thought: '代码库已完成自愈修复，无任何语法回归，工程文件隐患已自动清除。',
       };
 
       setSteps([
@@ -282,10 +350,16 @@ export default function App() {
       };
       setNotifications((prev) => [newNotif, ...prev]);
 
-      // Update in-memory file with healed code
-      if (data.repairedCode && data.fileDiff?.path) {
-        handleUpdateFileContent(data.fileDiff.path, data.repairedCode);
-      }
+      // Update in-memory file with healed code and clear hasBug flags
+      setSelectedRepo((prev) => ({
+        ...prev,
+        files: prev.files.map((f) => {
+          if (data.fileDiff?.path && f.path === data.fileDiff.path && data.repairedCode) {
+            return { ...f, content: data.repairedCode, hasBug: false, bugDescription: undefined };
+          }
+          return { ...f, hasBug: false, bugDescription: undefined };
+        }),
+      }));
     } catch (err: any) {
       console.error('Agent execution error:', err);
     } finally {
@@ -307,13 +381,14 @@ export default function App() {
         notifications={notifications}
         onMarkAllRead={handleMarkAllNotificationsRead}
         onClearNotifications={handleClearNotifications}
+        onOpenUploadModal={() => setIsUploadModalOpen(true)}
       />
 
       {/* Main App Container */}
       <div className="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col lg:flex-row gap-6">
         {/* Sidebar Controls */}
         <Sidebar
-          sampleRepos={SAMPLE_REPOS}
+          sampleRepos={allRepos}
           selectedRepo={selectedRepo}
           onSelectRepo={handleSelectRepo}
           agentMode={agentMode}
@@ -326,6 +401,7 @@ export default function App() {
           hasApiKey={hasApiKey}
           astNodesCount={astNodes.length}
           chromaCount={astNodes.length * 2}
+          onOpenUploadModal={() => setIsUploadModalOpen(true)}
         />
 
         {/* Content Area */}
@@ -350,6 +426,9 @@ export default function App() {
                 onUpdateFileContent={handleUpdateFileContent}
                 onRunAgent={handleRunAgent}
                 isAgentRunning={isAgentRunning}
+                onAddFile={handleAddFile}
+                onDeleteFile={handleDeleteFile}
+                onOpenUploadModal={() => setIsUploadModalOpen(true)}
               />
             </div>
           )}
@@ -359,6 +438,13 @@ export default function App() {
           {activeTab === 'ast' && <AstIndexViewer astNodes={astNodes} repoName={selectedRepo.name} />}
         </main>
       </div>
+
+      {/* Code Upload Modal */}
+      <CodeUploadModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onImportProject={handleImportProject}
+      />
 
       {/* High Density Footer Status Bar */}
       <footer className="h-9 px-6 bg-white/80 backdrop-blur-md border-t border-slate-200/80 flex items-center justify-between text-xs text-slate-500">
