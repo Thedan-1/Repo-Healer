@@ -100,10 +100,10 @@ Repo-Healer supports flexible LLM provider switching via the system configuratio
 │   │   ├── CodeDiffViewer.tsx    # Unified diff & patch preview component
 │   │   ├── CodeEditorPanel.tsx   # Live code editor with syntax highlighting
 │   │   ├── Header.tsx            # Header bar with repo selector & status indicators
-│   │   ├── RepositorySelector.tsx# Multi-repository target selector
+│   │   ├── Sidebar.tsx           # Multi-repository target selector
 │   │   └── SettingsModal.tsx     # System settings & LLM provider config
 │   ├── data/
-│   │   └── mockRepositories.ts   # Sample repositories with failing PyTest cases
+│   │   └── sampleRepos.ts        # Sample repositories with failing PyTest cases
 │   └── types.ts            # Global TypeScript interface & type definitions
 ├── package.json            # Project dependencies & build scripts
 ├── vite.config.ts          # Vite build configuration
