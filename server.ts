@@ -335,7 +335,7 @@ class TokenHandler:
 `;
   }
 
-  return code.replace(/def ([a-zA-V0-9_]+)\(([^)]+)\):/, 'def $1($2):\n        # Defensively added type checks and safe fallbacks');
+  return code.replace(/def ([a-zA-Z_][a-zA-Z0-9_]*)\(([^)]+)\):/, 'def $1($2):\n        # Defensively added type checks and safe fallbacks');
 }
 
 // Simple unified diff generator
