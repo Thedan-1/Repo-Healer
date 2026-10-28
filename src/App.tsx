@@ -75,7 +75,7 @@ export default function App() {
     totalLatencyMs: 1240,
     healingLoopsCount: 1,
     maxHealingLoops: 3,
-    testStatus: 'passed',
+    testStatus: 'idle',
     astNodesParsed: 18,
     chromaEmbeddingsCount: 36,
   });
@@ -302,25 +302,31 @@ export default function App() {
       };
 
       // Step 4: Subprocess PyTest Run
+      const verificationStatus = data.testResult?.status || data.metrics?.testStatus || 'not_run';
+      const verificationPassed = verificationStatus === 'passed';
       const step4: TraceStep = {
         id: '4',
         stepNumber: 4,
         title: '执行 PyTest 自动化测试套件 (Test Execution)',
-        status: data.testResult?.passed ? 'success' : 'failed',
+        status: verificationPassed ? 'success' : verificationStatus === 'not_run' || verificationStatus === 'idle' ? 'warning' : 'failed',
         timestamp: now(),
         phase: 'test',
-        thought: 'PyTest 测试执行完毕，所有 4 个单元测试断言均已通过！',
+        thought: verificationPassed
+          ? `PyTest 已实际执行并通过 ${data.testResult?.totalTests || 0} 个测试。`
+          : data.testResult?.reason || '本次修复没有可执行的测试结果。',
       };
 
       // Step 5: Final Update
       const step5: TraceStep = {
         id: '5',
         stepNumber: 5,
-        title: '代码自愈校验通过，更新直接生效于当前工程',
-        status: 'success',
+        title: verificationPassed ? '代码修复已通过验证' : '代码修复已生成，尚未通过验证',
+        status: verificationPassed ? 'success' : 'warning',
         timestamp: now(),
         phase: 'commit',
-        thought: '代码库已完成自愈修复，无任何语法回归，工程文件隐患已自动清除。',
+        thought: verificationPassed
+          ? '代码库已完成修复，并由实际 PyTest 结果确认。'
+          : '补丁已生成，但在获得通过的测试结果前不会被标记为已验证。',
       };
 
       setSteps([
@@ -331,7 +337,11 @@ export default function App() {
         step5,
       ]);
 
-      setTestOutput(data.testResult?.stdout || '================ 4 passed in 0.12s ================');
+      setTestOutput(
+        [data.testResult?.stdout, data.testResult?.stderr].filter(Boolean).join('\n') ||
+          data.testResult?.reason ||
+          'No verification output was produced.',
+      );
       if (data.fileDiff) {
         setDiffs([data.fileDiff]);
       }
@@ -342,10 +352,14 @@ export default function App() {
       // Add new notification
       const newNotif: NotificationItem = {
         id: Date.now().toString(),
-        title: `代码自愈校验成功 (${data.fileDiff?.path || 'core.py'})`,
-        description: `使用 ${settings.modelName} 算法生成的补丁已通过 PyTest 套件所有断言！`,
+        title: verificationPassed
+          ? `代码修复并通过验证 (${data.fileDiff?.path || 'core.py'})`
+          : `代码补丁已生成，等待验证 (${data.fileDiff?.path || 'core.py'})`,
+        description: verificationPassed
+          ? `使用 ${settings.modelName} 生成的补丁已由实际 PyTest 结果确认。`
+          : data.testResult?.reason || '补丁尚未获得通过的测试结果。',
         time: now(),
-        type: 'success',
+        type: verificationPassed ? 'success' : 'warning',
         read: false,
       };
       setNotifications((prev) => [newNotif, ...prev]);

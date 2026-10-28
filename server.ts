@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
+import { runPythonVerification, type VerificationFile } from './src/server/verification.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -112,6 +113,23 @@ app.post('/api/index-repo', async (req, res) => {
   }
 });
 
+// Explicit verification endpoint. This is intentionally separate from the LLM
+// repair call so users can re-run the same evidence check without spending tokens.
+app.post('/api/verify', async (req, res) => {
+  const { files, testPath, timeoutMs } = req.body || {};
+  if (!Array.isArray(files)) {
+    return res.status(400).json({ error: 'Invalid files payload' });
+  }
+
+  try {
+    const result = await runPythonVerification(files, testPath, { timeoutMs });
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error in verify:', error);
+    res.status(500).json({ error: error?.message || 'Verification failed' });
+  }
+});
+
 // Autonomous Agent Self-Healing Repair Endpoint
 app.post('/api/heal-agent', async (req, res) => {
   const startTime = Date.now();
@@ -123,10 +141,11 @@ app.post('/api/heal-agent', async (req, res) => {
 
     const ai = getGenAI();
     const primaryFile = files.find((f: any) => f.hasBug) || files[0];
-    const testFile = files.find((f: any) => f.path.includes('test') || f.testFile) || {
-      path: primaryFile.testFile || 'tests/test_core.py',
-      content: primaryFile.testContent || '# Default test file\ndef test_dummy(): pass',
-    };
+    const existingTestFile = files.find((f: any) => f.path.includes('test'));
+    const testFile = existingTestFile ||
+      (primaryFile.testFile && primaryFile.testContent
+        ? { path: primaryFile.testFile, content: primaryFile.testContent }
+        : undefined);
 
     const prompt = `You are Repo-Healer, an autonomous senior AI software engineering agent.
 Your goal is to repair bugs in the following Python code using precise, minimal code fixes.
@@ -140,9 +159,9 @@ Source Code to Repair:
 ${primaryFile.content}
 \`\`\`
 
-Associated Test File:
+Associated Test File (if provided):
 \`\`\`python
-${testFile.content || testFile.testContent}
+${testFile?.content || 'No test file provided. The patch will be marked as unverified.'}
 \`\`\`
 
 Instructions:
@@ -151,9 +170,7 @@ Instructions:
    - "diagnosis": A 1-2 sentence technical explanation of the root cause.
    - "repairedCode": The complete, fully working, syntactically valid Python code for ${primaryFile.path}.
    - "patchSummary": A short description of the fix applied.
-   - "testResultsPassed": boolean (true if your fix will make the tests pass).
-   - "testOutput": Detailed pytest trace / output log.
-   - "reasoningSteps": Array of strings representing your thoughts during execution.
+   - "reasoningSteps": Array of short, user-facing implementation steps. Do not claim that tests ran.
 `;
 
     let aiResponseText = '';
@@ -168,7 +185,7 @@ Instructions:
           responseMimeType: 'application/json',
           temperature: mode === 'aggressive' ? 0.4 : 0.1,
           systemInstruction:
-            'You are Repo-Healer, a pragmatic Python expert. Return strictly valid JSON containing diagnosis, repairedCode, patchSummary, testResultsPassed, testOutput, and reasoningSteps.',
+            'You are Repo-Healer, a pragmatic Python expert. Return strictly valid JSON containing diagnosis, repairedCode, patchSummary, and short user-facing reasoningSteps. Never claim that tests ran; verification is performed separately by the server.',
         },
       });
 
@@ -181,13 +198,11 @@ Instructions:
         diagnosis: 'ZeroDivisionError and type conversion mismatch in arithmetic core module.',
         repairedCode: generateFallbackFix(primaryFile.content, primaryFile.path),
         patchSummary: 'Added guard checks for n <= 0, safe denominator check, and float type casting.',
-        testResultsPassed: true,
-        testOutput: '================ 4 passed in 0.12s ================',
         reasoningSteps: [
           'Scanned AST AST-tree for division operators without zero guards.',
           'Identified missing type coercion on string inputs from API payloads.',
           'Applied minimal defense patch to core.py.',
-          'Executed pytest runner: 4 passed cleanly.',
+          'Prepared the repaired code for explicit verification.',
         ],
       });
       inputTokens = 350;
@@ -206,9 +221,7 @@ Instructions:
           diagnosis: 'Applied pragmatic self-healing patch.',
           repairedCode: generateFallbackFix(primaryFile.content, primaryFile.path),
           patchSummary: 'Added defensive checks & exception guards.',
-          testResultsPassed: true,
-          testOutput: '4 passed in 0.08s',
-          reasoningSteps: ['Parsed codebase', 'Fixed zero division', 'Verified pytest'],
+          reasoningSteps: ['Parsed codebase', 'Fixed the reported issue', 'Prepared the patch for explicit verification'],
         };
       }
     }
@@ -221,19 +234,22 @@ Instructions:
     const originalCode = primaryFile.content;
     const healedCode = parsedResult.repairedCode || generateFallbackFix(originalCode, primaryFile.path);
     const unifiedDiff = generateUnifiedDiff(primaryFile.path, originalCode, healedCode);
+    const verificationFiles: VerificationFile[] = files.map((file: any) => ({
+      path: file.path,
+      content: file.path === primaryFile.path ? healedCode : file.content,
+    }));
+    if (testFile && !verificationFiles.some((file) => file.path === testFile.path)) {
+      verificationFiles.push({ path: testFile.path, content: testFile.content });
+    }
+    const verification = await runPythonVerification(verificationFiles, testFile?.path);
+    const testStatus = verification.status === 'not_run' ? 'idle' : verification.status;
 
     res.json({
       success: true,
       diagnosis: parsedResult.diagnosis || 'Bug identified and patched.',
       repairedCode: healedCode,
       patchSummary: parsedResult.patchSummary || 'Applied defensive fixes.',
-      testResult: {
-        passed: parsedResult.testResultsPassed ?? true,
-        totalTests: 4,
-        failedTests: 0,
-        stdout: parsedResult.testOutput || 'pytest execution finished successfully.',
-        stderr: '',
-      },
+      testResult: verification,
       fileDiff: {
         path: primaryFile.path,
         originalCode,
@@ -250,16 +266,14 @@ Instructions:
         totalLatencyMs: totalDuration,
         healingLoopsCount: 1,
         maxHealingLoops: 3,
-        testStatus: 'passed',
+        testStatus,
         astNodesParsed: 14,
         chromaEmbeddingsCount: 28,
       },
-      reasoningSteps: parsedResult.reasoningSteps || [
-        'Phase 1: Parsed codebase AST tree and located vulnerable function blocks.',
-        'Phase 2: Queried ChromaDB vector index for similar fix templates.',
-        'Phase 3: Generated Search/Replace patch with type casting and zero guards.',
-        'Phase 4: Executed subprocess test suite in sandbox.',
-        'Phase 5: Validated 0 failures in test suite.',
+      reasoningSteps: [
+        'Parsed the submitted code and located the target file.',
+        'Generated a minimal repair patch from the selected model or offline fallback.',
+        `Verification status: ${verification.status}${verification.reason ? ` (${verification.reason})` : ''}.`,
       ],
     });
   } catch (err: any) {
