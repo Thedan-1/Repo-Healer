@@ -4,10 +4,10 @@
 
 ### Repo-Healer: Autonomous Codebase Self-Healing Agent with AST Scoping and Multi-Loop Verification
 
-**Maintained & Developed by [Jiacheng Xu (胥佳程)](https://github.com/jiacheng-xu)**
+**Maintained by [Thedan-1](https://github.com/Thedan-1)**
 
-[![PyTest CI](https://img.shields.io/badge/PyTest-PASSED-emerald?style=for-the-badge&logo=pytest)](https://github.com/jiacheng-xu/repo-healer)
-[![License MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](https://github.com/jiacheng-xu/repo-healer)
+[![Verification](https://img.shields.io/badge/Verification-real%20pytest%20results-emerald?style=for-the-badge&logo=pytest)](https://github.com/Thedan-1/Repo-Healer)
+[![License MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](https://github.com/Thedan-1/Repo-Healer)
 [![LLM Engine](https://img.shields.io/badge/Gemini_3.6-Pro-purple?style=for-the-badge&logo=google)](https://github.com/jiacheng-xu/repo-healer)
 [![Multi-Provider](https://img.shields.io/badge/Model-Gemini%20%7C%20OpenAI%20%7C%20Ollama-blue?style=for-the-badge)](https://github.com/jiacheng-xu/repo-healer)
 
@@ -27,7 +27,7 @@
 
 - **AST Abstract Syntax Tree Scoping**: Extracts function nodes, classes, imports, and call dependency trees to compute cyclomatic complexity and pinpoint failure surfaces.
 - **Chroma 1536-Dim Vector Retrieval (RAG)**: Indexes codebase symbols into high-dimensional vector embeddings for fast multi-file context retrieval.
-- **Self-Healing Execution Loop**: Executes test runner subprocesses (`pytest`), catches tracebacks, and iterates up to $N$ healing cycles until 100% test pass rate is achieved.
+- **Evidence-Based Verification**: Runs a fixed `python -m pytest -q` command in a temporary directory with a timeout and bounded output. A patch is never reported as passed based on an LLM prediction.
 - **AST Static Security & Boundary Inspection**: Detects zero-division risks, unhandled exceptions, and hardcoded secret keys directly on syntax trees.
 - **Multi-Provider LLM Integration**: Full support for Google Gemini (`gemini-3.6-pro`), OpenAI (`gpt-4o`), Ollama local models (`qwen2.5-coder:7b`), and custom endpoints (`DeepSeek`).
 - **Minimal Search/Replace Patching**: Produces precise unified diff patches instead of rewriting entire multi-thousand-line source files.
@@ -63,8 +63,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/jiacheng-xu/repo-healer.git
-cd repo-healer
+git clone https://github.com/Thedan-1/Repo-Healer.git
+cd Repo-Healer
 
 # Install dependencies
 npm install
@@ -74,6 +74,10 @@ npm run dev
 ```
 
 Open your browser at `http://localhost:3000` to access the Repo-Healer Web Dashboard.
+
+### Verification API
+
+`POST /api/verify` accepts `{ "files": [{ "path": "...", "content": "..." }], "testPath": "tests/test_core.py" }` and runs the fixed `python -m pytest -q` command against those files. The runner rejects absolute and traversal paths, limits repository size, caps output, and stops after 30 seconds by default. If no test file is supplied, the response is `not_run`; it is never reported as a pass.
 
 ---
 
@@ -92,6 +96,7 @@ Repo-Healer supports flexible LLM provider switching via the system configuratio
 
 ```text
 ├── server.ts               # Express backend API & LLM proxy server
+├── src/server/verification.ts # Restricted pytest runner and result parser
 ├── src/
 │   ├── App.tsx             # Main application entry point & state orchestrator
 │   ├── components/
@@ -114,15 +119,15 @@ Repo-Healer supports flexible LLM provider switching via the system configuratio
 
 ## 📑 Author & Citation
 
-Created and maintained by **[Jiacheng Xu (胥佳程)](https://github.com/jiacheng-xu)**.
+Created and maintained by **[Thedan-1](https://github.com/Thedan-1)**.
 
 ```bibtex
 @software{xu2026repohealer,
-  author = {Xu, Jiacheng},
+  author = {Thedan-1},
   title = {Repo-Healer: Autonomous Codebase Self-Healing Agent},
   year = {2026},
   publisher = {GitHub},
-  url = {https://github.com/jiacheng-xu/repo-healer}
+  url = {https://github.com/Thedan-1/Repo-Healer}
 }
 ```
 

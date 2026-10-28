@@ -8,6 +8,15 @@ interface MetricsDashboardProps {
 
 export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ metrics }) => {
   const isPassed = metrics.testStatus === 'passed';
+  const isPending = metrics.testStatus === 'idle' || metrics.testStatus === 'running';
+  const statusLabel = {
+    passed: 'PASSED 通过',
+    failed: 'FAILED 失败',
+    timed_out: 'TIMEOUT 超时',
+    error: 'ERROR 错误',
+    running: 'RUNNING 运行中',
+    idle: 'NOT RUN 未运行',
+  }[metrics.testStatus];
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
@@ -66,16 +75,16 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({ metrics }) =
           {isPassed ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           ) : (
-            <XCircle className="w-4 h-4 text-rose-500 animate-pulse" />
+            <XCircle className={`w-4 h-4 ${isPending ? 'text-amber-500' : 'text-rose-500'} ${isPending ? '' : 'animate-pulse'}`} />
           )}
         </div>
         <div>
           <div
             className={`text-base font-bold font-mono uppercase tracking-tight ${
-              isPassed ? 'text-emerald-600' : 'text-rose-600'
+              isPassed ? 'text-emerald-600' : isPending ? 'text-amber-600' : 'text-rose-600'
             }`}
           >
-            {isPassed ? 'PASSED 通过' : 'RUNNING 运行中'}
+            {statusLabel}
           </div>
           <div className="text-[11px] text-slate-400 font-mono mt-0.5">
             PyTest 套件结果

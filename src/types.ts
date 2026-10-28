@@ -39,12 +39,16 @@ export interface TraceStep {
 }
 
 export interface TestResult {
-  passed: boolean;
+  status: 'passed' | 'failed' | 'timed_out' | 'error' | 'not_run';
+  passed: boolean | null;
   totalTests: number;
   failedTests: number;
   stdout: string;
   stderr: string;
   traceback?: string;
+  exitCode?: number | null;
+  durationMs?: number;
+  reason?: string;
 }
 
 export interface MetricData {
@@ -55,7 +59,7 @@ export interface MetricData {
   totalLatencyMs: number;
   healingLoopsCount: number;
   maxHealingLoops: number;
-  testStatus: 'passed' | 'failed' | 'running' | 'idle';
+  testStatus: 'passed' | 'failed' | 'timed_out' | 'error' | 'running' | 'idle';
   astNodesParsed: number;
   chromaEmbeddingsCount: number;
 }
